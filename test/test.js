@@ -8,7 +8,7 @@ var exiv = require('../exiv2')
 describe('exiv2', function(){
   describe('.getImageTags()', function(){
     it("should callback with image's tags", function(done) {
-      exiv.getImageTags(dir + '/books.jpg', function(err, tags) {
+      exiv.getImageTags(fs.readFileSync(dir + '/books.jpg'), function(err, tags) {
         should.not.exist(err);
 
         tags.should.have.property('Exif.Image.DateTime', '2008:12:16 21:28:36');
@@ -18,7 +18,7 @@ describe('exiv2', function(){
     });
 
     it('should callback with null on untagged file', function(done) {
-      exiv.getImageTags(dir + '/damien.jpg', function(err, tags) {
+      exiv.getImageTags(fs.readFileSync(dir + '/damien.jpg'), function(err, tags) {
         should.not.exist(err);
         should.not.exist(tags);
         done();
@@ -37,13 +37,6 @@ describe('exiv2', function(){
       }).should.throw();
     });
 
-    it('should report an error on an invalid path', function(done) {
-      exiv.getImageTags('idontexist.jpg', function(err, tags) {
-        should.exist(err);
-        should.not.exist(tags);
-        done();
-      });
-    });
   });
 
   describe('.setImageTags()', function(){
@@ -59,10 +52,16 @@ describe('exiv2', function(){
         "Iptc.Application2.RecordVersion" : "2",
         "Xmp.dc.subject" : "A camera"
       };
-      exiv.setImageTags(temp, tags, function(err){
+
+      var buffer = fs.readFileSync(temp);
+
+      exiv.setImageTags(buffer, tags, function(err, tempBuffer){
         should.not.exist(err);
 
-        exiv.getImageTags(temp, function(err, tags) {
+        fs.writeFileSync(temp, tempBuffer);
+        buffer = fs.readFileSync(temp);
+
+        exiv.getImageTags(buffer, function(err, tags) {
           tags.should.have.property('Exif.Photo.UserComment', "Some books..");
           tags.should.have.property('Exif.Canon.OwnerName', "Damo's camera");
           tags.should.have.property('Iptc.Application2.RecordVersion', "2");
@@ -87,13 +86,6 @@ describe('exiv2', function(){
       }).should.throw();
     });
 
-    it('should report an error on an invalid path', function(done) {
-      exiv.setImageTags('idontexist.jpg', {}, function(err, tags) {
-        should.exist(err);
-        should.not.exist(tags);
-        done();
-      });
-    });
   });
 
   describe('.deleteImageTags()', function(){
@@ -103,11 +95,17 @@ describe('exiv2', function(){
       fs.writeFileSync(temp, fs.readFileSync(dir + '/books.jpg'));
     });
     it('should delete tags in image files', function(done) {
+
+      var buffer = fs.readFileSync(temp);
+
       var tags = ["Exif.Canon.OwnerName"];
-      exiv.deleteImageTags(temp, tags, function(err){
+      exiv.deleteImageTags(buffer, tags, function(err, tempBuffer){
         should.not.exist(err);
 
-        exiv.getImageTags(temp, function(err, tags) {
+        fs.writeFileSync(temp, tempBuffer);
+        buffer = fs.readFileSync(temp);
+
+        exiv.getImageTags(buffer, function(err, tags) {
           should.not.exist(err);
           tags.should.not.have.property('Exif.Canon.OwnerName');
           done();
@@ -121,7 +119,7 @@ describe('exiv2', function(){
 
   describe('.getImagePreviews()', function(){
     it("should callback with image's previews", function(done) {
-      exiv.getImagePreviews(dir + '/books.jpg', function(err, previews) {
+      exiv.getImagePreviews(fs.readFileSync(dir + '/books.jpg'), function(err, previews) {
         should.not.exist(err);
         previews.should.be.an.instanceof(Array);
         previews.should.have.lengthOf(1);
@@ -135,7 +133,7 @@ describe('exiv2', function(){
     });
 
     it('should callback with an empty array for files no previews', function(done) {
-      exiv.getImagePreviews(dir + '/damien.jpg', function(err, previews) {
+      exiv.getImagePreviews(fs.readFileSync(dir + '/damien.jpg'), function(err, previews) {
         should.not.exist(err);
         previews.should.be.an.instanceof(Array);
         previews.should.have.lengthOf(0);
@@ -152,17 +150,10 @@ describe('exiv2', function(){
 
     it('should throw if no callback is provided', function() {
       (function(){
-        exiv.getImagePreviews(dir + '/books.jpg')
+        exiv.getImagePreviews(fs.readFileSync(dir + '/books.jpg'))
       }).should.throw();
     });
 
-    it('should report an error on an invalid path', function(done) {
-      exiv.getImagePreviews('idontexist.jpg', function(err, previews) {
-        should.exist(err);
-        should.not.exist(previews);
-        done();
-      });
-    });
   });
 
   describe('.getDate()', function() {

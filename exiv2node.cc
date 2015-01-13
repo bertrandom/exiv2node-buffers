@@ -23,10 +23,13 @@ struct Baton {
   uv_work_t request;
   Persistent<Function> cb;
   std::string fileName;
+  const Exiv2::byte* buff;
+  size_t buffLength;
   std::string exifException;
   tag_map_t *tags;
-
-  Baton(Local<String> fn_, Handle<Function> cb_) {
+  Exiv2::Image::AutoPtr image;
+  
+  Baton(char* b, size_t l, Handle<Function> cb_) {
 #if NODE_VERSION_AT_LEAST(0, 7, 9)
     uv_ref((uv_handle_t *) & g_async);
 #else
@@ -34,7 +37,8 @@ struct Baton {
 #endif
     request.data = this;
     cb = Persistent<Function>::New(cb_);
-    fileName = std::string(*String::AsciiValue(fn_));
+    buff = reinterpret_cast<const unsigned char *>(b);
+    buffLength = l;
     exifException = std::string();
     tags = new tag_map_t();
   }
@@ -72,8 +76,8 @@ struct GetPreviewBaton : Baton {
   Preview **previews;
   size_t size;
 
-  GetPreviewBaton(Local<String> fn_, Handle<Function> cb_)
-    : Baton(fn_, cb_), previews(0), size(0)
+  GetPreviewBaton(char* b, size_t l, Handle<Function> cb_)
+    : Baton(b, l, cb_), previews(0), size(0)
   {}
   virtual ~GetPreviewBaton() {
     for (size_t i = 0; i < size; ++i) {
@@ -120,11 +124,15 @@ static Handle<Value> GetImageTags(const Arguments& args) {
   HandleScope scope;
 
   /* Usage arguments */
-  if (args.Length() <= (1) || !args[1]->IsFunction())
-    return ThrowException(Exception::TypeError(String::New("Usage: <filename> <callback function>")));
+  if (args.Length() <= (1) || !args[1]->IsFunction() || !args[0]->IsObject())
+    return ThrowException(Exception::TypeError(String::New("Usage: <buffer> <callback function>")));
+
+  Local<Object> bufferObj    = args[0]->ToObject();
+  char*         bufferData   = Buffer::Data(bufferObj);
+  size_t        bufferLength = Buffer::Length(bufferObj);
 
   // Set up our thread data struct, pass off to the libuv thread pool.
-  Baton *thread_data = new Baton(Local<String>::Cast(args[0]), Local<Function>::Cast(args[1]));
+  Baton *thread_data = new Baton(bufferData, bufferLength, Local<Function>::Cast(args[1]));
 
   int status = uv_queue_work(uv_default_loop(), &thread_data->request, GetImageTagsWorker, (uv_after_work_cb)AfterGetImageTags);
   assert(status == 0);
@@ -136,7 +144,7 @@ static void GetImageTagsWorker(uv_work_t* req) {
   Baton *thread_data = static_cast<Baton *> (req->data);
 
   try {
-    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->fileName);
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->buff, thread_data->buffLength);
     assert(image.get() != 0);
     image->readMetadata();
 
@@ -200,11 +208,17 @@ static Handle<Value> SetImageTags(const Arguments& args) {
   HandleScope scope;
 
   /* Usage arguments */
-  if (args.Length() <= 2 || !args[2]->IsFunction())
-    return ThrowException(Exception::TypeError(String::New("Usage: <filename> <tags> <callback function>")));
+  if (args.Length() <= 2 || !args[2]->IsFunction() || !args[0]->IsObject())
+    return ThrowException(Exception::TypeError(String::New("Usage: <buffer> <tags> <callback function>")));
 
   // Set up our thread data struct, pass off to the libuv thread pool.
-  Baton *thread_data = new Baton(Local<String>::Cast(args[0]), Local<Function>::Cast(args[2]));
+
+  Local<Object> bufferObj    = args[0]->ToObject();
+  char*         bufferData   = Buffer::Data(bufferObj);
+  size_t        bufferLength = Buffer::Length(bufferObj);
+
+  // Set up our thread data struct, pass off to the libuv thread pool.
+  Baton *thread_data = new Baton(bufferData, bufferLength, Local<Function>::Cast(args[2]));
 
   Local<Object> tags = Local<Object>::Cast(args[1]);
   Local<Array> keys = tags->GetPropertyNames();
@@ -226,7 +240,7 @@ static void SetImageTagsWorker(uv_work_t *req) {
   Baton *thread_data = static_cast<Baton*> (req->data);
 
   try {
-    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->fileName);
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->buff, thread_data->buffLength);
     assert(image.get() != 0);
 
     image->readMetadata();
@@ -252,6 +266,9 @@ static void SetImageTagsWorker(uv_work_t *req) {
     image->setIptcData(iptcData);
     image->setXmpData(xmpData);
     image->writeMetadata();
+
+    thread_data->image = image;
+
   } catch (std::exception& e) {
     thread_data->exifException.append(e.what());
   }
@@ -262,11 +279,15 @@ static Handle<Value> DeleteImageTags(const Arguments& args) {
   HandleScope scope;
 
   /* Usage arguments */
-  if (args.Length() <= 2 || !args[2]->IsFunction())
-    return ThrowException(Exception::TypeError(String::New("Usage: <filename> <tags> <callback function>")));
+  if (args.Length() <= 2 || !args[2]->IsFunction() || !args[0]->IsObject())
+    return ThrowException(Exception::TypeError(String::New("Usage: <buffer> <tags> <callback function>")));
+
+  Local<Object> bufferObj    = args[0]->ToObject();
+  char*         bufferData   = Buffer::Data(bufferObj);
+  size_t        bufferLength = Buffer::Length(bufferObj);
 
   // Set up our thread data struct, pass off to the libuv thread pool.
-  Baton *thread_data = new Baton(Local<String>::Cast(args[0]), Local<Function>::Cast(args[2]));
+  Baton *thread_data = new Baton(bufferData, bufferLength, Local<Function>::Cast(args[2]));
 
   // for simplicity we just reuse the batons 'tags' map here for holding the array of tags to be deleted in the baton
   Local<Array> tags = Local<Array>::Cast(args[1]);
@@ -288,7 +309,7 @@ static void DeleteImageTagsWorker(uv_work_t *req) {
   Baton *thread_data = static_cast<Baton*> (req->data);
 
   try {
-    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->fileName);
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->buff, thread_data->buffLength);
     assert(image.get() != 0);
 
     image->readMetadata();
@@ -320,6 +341,9 @@ static void DeleteImageTagsWorker(uv_work_t *req) {
     image->setIptcData(iptcData);
     image->setXmpData(xmpData);
     image->writeMetadata();
+
+    thread_data->image = image;
+
   } catch (std::exception& e) {
     thread_data->exifException.append(e.what());
   }
@@ -331,14 +355,20 @@ static void AfterDeleteImageTags(uv_work_t* req, int status) {
   Baton *thread_data = static_cast<Baton*> (req->data);
 
   // Create an argument array for any errors.
-  Local<Value> argv[1] = { Local<Value>::New(Null()) };
+  Local<Value> argv[2] = { Local<Value>::New(Null()), Local<Value>::New(Null()) };
+
   if (!thread_data->exifException.empty()) {
     argv[0] = Local<String>::New(String::New(thread_data->exifException.c_str()));
+  } else {
+
+    Exiv2::Image::AutoPtr image = thread_data->image;
+    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(thread_data->buffLength).pData_), thread_data->buffLength);
+
   }
 
   // Pass the argv array object to our callback function.
   TryCatch try_catch;
-  thread_data->cb->Call(Context::GetCurrent()->Global(), 1, argv);
+  thread_data->cb->Call(Context::GetCurrent()->Global(), 2, argv);
   if (try_catch.HasCaught()) {
     FatalException(try_catch);
   }
@@ -352,14 +382,20 @@ static void AfterSetImageTags(uv_work_t* req, int status) {
   Baton *thread_data = static_cast<Baton*> (req->data);
 
   // Create an argument array for any errors.
-  Local<Value> argv[1] = { Local<Value>::New(Null()) };
+  Local<Value> argv[2] = { Local<Value>::New(Null()), Local<Value>::New(Null()) };
+
   if (!thread_data->exifException.empty()) {
     argv[0] = Local<String>::New(String::New(thread_data->exifException.c_str()));
+  } else {
+
+    Exiv2::Image::AutoPtr image = thread_data->image;
+    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(thread_data->buffLength).pData_), thread_data->buffLength);
+
   }
 
   // Pass the argv array object to our callback function.
   TryCatch try_catch;
-  thread_data->cb->Call(Context::GetCurrent()->Global(), 1, argv);
+  thread_data->cb->Call(Context::GetCurrent()->Global(), 2, argv);
   if (try_catch.HasCaught()) {
     FatalException(try_catch);
   }
@@ -367,17 +403,20 @@ static void AfterSetImageTags(uv_work_t* req, int status) {
   delete thread_data;
 }
 
-
 // Fetch preview images
 static Handle<Value> GetImagePreviews(const Arguments& args) {
   HandleScope scope;
 
   // Usage arguments
-  if (args.Length() <= (1) || !args[1]->IsFunction())
-    return ThrowException(Exception::TypeError(String::New("Usage: <filename> <callback function>")));
+  if (args.Length() <= (1) || !args[1]->IsFunction() || !args[0]->IsObject())
+    return ThrowException(Exception::TypeError(String::New("Usage: <buffer> <callback function>")));
+
+  Local<Object> bufferObj    = args[0]->ToObject();
+  char*         bufferData   = Buffer::Data(bufferObj);
+  size_t        bufferLength = Buffer::Length(bufferObj);
 
   // Set up our thread data struct, pass off to the libuv thread pool.
-  GetPreviewBaton *thread_data = new GetPreviewBaton(Local<String>::Cast(args[0]), Local<Function>::Cast(args[1]));
+  GetPreviewBaton *thread_data = new GetPreviewBaton(bufferData, bufferLength, Local<Function>::Cast(args[1]));
 
   int status = uv_queue_work(uv_default_loop(), &thread_data->request, GetImagePreviewsWorker, (uv_after_work_cb)AfterGetImagePreviews);
   assert(status == 0);
@@ -390,7 +429,7 @@ static void GetImagePreviewsWorker(uv_work_t *req) {
   GetPreviewBaton *thread_data = static_cast<GetPreviewBaton*> (req->data);
 
   try {
-    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->fileName);
+    Exiv2::Image::AutoPtr image = Exiv2::ImageFactory::open(thread_data->buff, thread_data->buffLength);
     assert(image.get() != 0);
     image->readMetadata();
 

@@ -1,7 +1,9 @@
-#Exiv2
+#exiv2-buffers
 
-Exiv2 is a native c++ extension for [node.js](http://nodejs.org/) that provides
-support for reading and writing image metadata via the [Exiv2 library](http://www.exiv2.org).
+exiv2-buffers is a native c++ extension for [node.js](http://nodejs.org/) that provides
+support for reading and writing image metadata via the [Exiv2 library](http://www.exiv2.org) with buffers.
+
+This is a fork of Damian Beresford's [exiv2node](https://github.com/dberesford/exiv2node) which adds buffer support so you don't need to write to the filesystem.
 
 ## Dependencies
 
@@ -34,7 +36,7 @@ information.
 Once the dependencies are in place, you can build and install the module using
 npm:
 
-    npm install exiv2
+    npm install exiv2-buffers
 
 You can verify that everything is installed and operating correctly by running
 the tests:
@@ -47,7 +49,7 @@ the tests:
 
     var ex = require('exiv2');
 
-    ex.getImageTags('./photo.jpg', function(err, tags) {
+    ex.getImageTags(fs.readFileSync('./photo.jpg'), function(err, tags) {
       console.log("DateTime: " + tags["Exif.Image.DateTime"]);
       console.log("DateTimeOriginal: " + tags["Exif.Photo.DateTimeOriginal"]);
     });
@@ -57,7 +59,7 @@ the tests:
     var ex = require('exiv2')
       , fs = require('fs');
 
-    ex.getImagePreviews('./photo.jpg', function(err, previews) {
+    ex.getImagePreviews(fs.readFileSync('./photo.jpg'), function(err, previews) {
       // Display information about the previews.
       console.log(previews);
 
@@ -74,28 +76,28 @@ the tests:
       "Exif.Photo.UserComment" : "Some Comment..",
       "Exif.Canon.OwnerName" : "My Camera"
     };
-    ex.setImageTags('./photo.jpg', newTags, function(err){
+    ex.setImageTags(fs.readFileSync('./photo.jpg'), newTags, function(err, buffer){
       if (err) {
         console.error(err);
       } else {
         console.log("setImageTags complete..");
+        console.log(buffer);
       }
     });
 
 ### Delete tags:
 
-    var ex = require('exiv2')
+    var ex = require('exiv2'),
+      fs = require('fs');
 
     var tagsToDelete = ["Exif.Photo.UserComment", "Exif.Canon.OwnerName"];
-    ex.deleteImageTags('./photo.jpg', tagsToDelete, function(err){
+    ex.deleteImageTags(fs.readFileSync('./photo.jpg'), tagsToDelete, function(err, buffer){
       if (err) {
         console.error(err);
       } else {
         console.log("deleteImageTags complete..");
+        console.log(buffer);
       }
     });
 
 Take a look at the `examples/` and `test/` directories for more.
-
-email: dberesford at gmail
-twitter: @dberesford
