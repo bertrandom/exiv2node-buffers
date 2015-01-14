@@ -47,7 +47,7 @@ the tests:
 
 ### Read tags:
 
-    var ex = require('exiv2');
+    var ex = require('exiv2-buffers');
 
     ex.getImageTags(fs.readFileSync('./photo.jpg'), function(err, tags) {
       console.log("DateTime: " + tags["Exif.Image.DateTime"]);
@@ -56,7 +56,7 @@ the tests:
 
 ### Load preview images:
 
-    var ex = require('exiv2')
+    var ex = require('exiv2-buffers')
       , fs = require('fs');
 
     ex.getImagePreviews(fs.readFileSync('./photo.jpg'), function(err, previews) {
@@ -70,7 +70,7 @@ the tests:
 
 ### Write tags:
 
-    var ex = require('exiv2')
+    var ex = require('exiv2-buffers')
 
     var newTags = {
       "Exif.Photo.UserComment" : "Some Comment..",
@@ -87,7 +87,7 @@ the tests:
 
 ### Delete tags:
 
-    var ex = require('exiv2'),
+    var ex = require('exiv2-buffers'),
       fs = require('fs');
 
     var tagsToDelete = ["Exif.Photo.UserComment", "Exif.Canon.OwnerName"];
