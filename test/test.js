@@ -56,7 +56,10 @@ describe('exiv2', function(){
       var buffer = fs.readFileSync(temp);
 
       exiv.setImageTags(buffer, tags, function(err, tempBuffer){
+
         should.not.exist(err);
+
+        buffer.length.should.not.equal(tempBuffer.length);
 
         fs.writeFileSync(temp, tempBuffer);
         buffer = fs.readFileSync(temp);
@@ -101,6 +104,8 @@ describe('exiv2', function(){
       var tags = ["Exif.Canon.OwnerName"];
       exiv.deleteImageTags(buffer, tags, function(err, tempBuffer){
         should.not.exist(err);
+
+        buffer.length.should.not.equal(tempBuffer.length);
 
         fs.writeFileSync(temp, tempBuffer);
         buffer = fs.readFileSync(temp);

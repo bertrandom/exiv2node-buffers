@@ -6,7 +6,7 @@
   },
   "name": "exiv2-buffers",
   "description": "A native c++ extension for node.js that provides support for reading & writing image metadata via Exiv2 with buffers.",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "homepage": "https://github.com/bertrandom/exiv2node-buffers",
   "repository": {
     "type": "git",

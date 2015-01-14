@@ -362,7 +362,7 @@ static void AfterDeleteImageTags(uv_work_t* req, int status) {
   } else {
 
     Exiv2::Image::AutoPtr image = thread_data->image;
-    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(thread_data->buffLength).pData_), thread_data->buffLength);
+    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(image->io().size()).pData_), image->io().size());
 
   }
 
@@ -389,7 +389,7 @@ static void AfterSetImageTags(uv_work_t* req, int status) {
   } else {
 
     Exiv2::Image::AutoPtr image = thread_data->image;
-    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(thread_data->buffLength).pData_), thread_data->buffLength);
+    argv[1] = makeBuffer(reinterpret_cast<char *>(image->io().read(image->io().size()).pData_), image->io().size());
 
   }
 
